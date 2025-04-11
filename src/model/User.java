@@ -44,27 +44,13 @@ public abstract class User implements Serializable {
         return name;
     }
 
-    public void setName(String name) {
-        this.name = name;
-    }
-
     public String getEmail() {
         return email;
-    }
-
-    public void setEmail(String email) {
-        this.email = email;
-    }
-
-    // Password is protected with limited access (information hiding)
-    protected String getPassword() {
-        return password;
     }
 
     public void setPassword(String password) {
         this.password = password;
     }
-
     /**
      * Verify if the provided password matches the user's password
      */

@@ -5,7 +5,9 @@ import service.*;
 import storage.*;
 import java.io.File;
 import java.util.*;
+import java.io.Console;
 import java.time.format.DateTimeFormatter;
+import java.util.stream.Collectors;
 
 /**
  * Main class for the SCIS Online Peer Review System.
@@ -23,6 +25,9 @@ public class PeerReviewSystem {
 
     // Scanner for user input
     private final Scanner scanner;
+
+    // Console for secure password input
+    private final Console console;
 
     // Date formatter for displaying dates
     private final DateTimeFormatter dateFormatter;
@@ -47,8 +52,9 @@ public class PeerReviewSystem {
         paperService = new PaperService(paperStorage, userService);
         reviewService = new ReviewService(reviewStorage, paperService, userService);
 
-        // Initialize scanner and date formatter
+        // Initialize scanner and console
         scanner = new Scanner(System.in);
+        console = System.console();
         dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
         // Create default admin if none exists
@@ -100,6 +106,7 @@ public class PeerReviewSystem {
         System.out.println("1. Login");
         System.out.println("2. Register as Student");
         System.out.println("3. Register as Faculty");
+        System.out.println("4. Register as Admin");
         System.out.println("0. Exit");
         System.out.println("=========================================");
     }
@@ -117,6 +124,9 @@ public class PeerReviewSystem {
                 break;
             case "3":
                 registerFaculty();
+                break;
+            case "4":
+                registerAdmin();
                 break;
             case "0":
                 return true;
@@ -205,14 +215,29 @@ public class PeerReviewSystem {
     }
 
     /**
+     * Get password securely without displaying it
+     */
+    private String getSecurePassword(String prompt) {
+        String password;
+        if (console != null) {
+            char[] pwdChars = console.readPassword(prompt);
+            password = new String(pwdChars);
+            Arrays.fill(pwdChars, ' ');
+        } else {
+            System.out.print(prompt);
+            password = scanner.nextLine();
+        }
+        return password;
+    }
+
+    /**
      * Login functionality
      */
     private void login() {
         System.out.println("\n----- Login -----");
         System.out.print("Email: ");
         String email = scanner.nextLine();
-        System.out.print("Password: ");
-        String password = scanner.nextLine();
+        String password = getSecurePassword("Password: ");
 
         Optional<User> userOpt = userService.login(email, password);
 
@@ -233,8 +258,7 @@ public class PeerReviewSystem {
         String name = scanner.nextLine();
         System.out.print("Email: ");
         String email = scanner.nextLine();
-        System.out.print("Password: ");
-        String password = scanner.nextLine();
+        String password = getSecurePassword("Password: ");
         System.out.print("Department: ");
         String department = scanner.nextLine();
         System.out.print("Student ID: ");
@@ -258,14 +282,35 @@ public class PeerReviewSystem {
         String name = scanner.nextLine();
         System.out.print("Email: ");
         String email = scanner.nextLine();
-        System.out.print("Password: ");
-        String password = scanner.nextLine();
+        String password = getSecurePassword("Password: ");
         System.out.print("Department: ");
         String department = scanner.nextLine();
         System.out.print("Position: ");
         String position = scanner.nextLine();
 
         boolean success = userService.registerFaculty(name, email, password, department, position);
+
+        if (success) {
+            System.out.println("Registration successful. You can now login.");
+        } else {
+            System.out.println("Registration failed. Email might already be registered.");
+        }
+    }
+
+    /**
+     * Register admin functionality
+     */
+    private void registerAdmin() {
+        System.out.println("\n----- Register as Admin -----");
+        System.out.print("Name: ");
+        String name = scanner.nextLine();
+        System.out.print("Email: ");
+        String email = scanner.nextLine();
+        String password = getSecurePassword("Password: ");
+        System.out.print("Admin Level: ");
+        String adminLevel = scanner.nextLine();
+
+        boolean success = userService.registerAdmin(name, email, password, adminLevel);
 
         if (success) {
             System.out.println("Registration successful. You can now login.");
@@ -299,18 +344,15 @@ public class PeerReviewSystem {
      */
     private void changePassword() {
         System.out.println("\n----- Change Password -----");
-        System.out.print("Current Password: ");
-        String currentPassword = scanner.nextLine();
+        String currentPassword = getSecurePassword("Current Password: ");
 
         if (!currentUser.verifyPassword(currentPassword)) {
             System.out.println("Incorrect current password.");
             return;
         }
 
-        System.out.print("New Password: ");
-        String newPassword = scanner.nextLine();
-        System.out.print("Confirm New Password: ");
-        String confirmPassword = scanner.nextLine();
+        String newPassword = getSecurePassword("New Password: ");
+        String confirmPassword = getSecurePassword("Confirm New Password: ");
 
         if (!newPassword.equals(confirmPassword)) {
             System.out.println("Passwords do not match.");
@@ -327,21 +369,43 @@ public class PeerReviewSystem {
      */
     private void submitPaper() {
         System.out.println("\n----- Submit Paper -----");
+
         System.out.print("Title: ");
-        String title = scanner.nextLine();
+        String title = scanner.nextLine().trim();
+
         System.out.print("Abstract: ");
-        String abstractText = scanner.nextLine();
+        String abstractText = scanner.nextLine().trim();
+
         System.out.println("Content (type 'END' on a new line when finished):");
         StringBuilder contentBuilder = new StringBuilder();
         String line;
         while (!(line = scanner.nextLine()).equals("END")) {
             contentBuilder.append(line).append("\n");
         }
-        String content = contentBuilder.toString();
+        String content = contentBuilder.toString().trim();
 
         System.out.print("Keywords (comma-separated): ");
         String keywordsInput = scanner.nextLine();
-        List<String> keywords = Arrays.asList(keywordsInput.split(",\\s*"));
+        List<String> keywords = Arrays.stream(keywordsInput.split(",\\s*"))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toList());
+
+        // Validation
+        if (title.isEmpty() || abstractText.isEmpty() || content.isEmpty()) {
+            System.out.println("Error: Title, abstract, and content cannot be empty.");
+            return;
+        }
+
+        if (content.length() < 100) {
+            System.out.println("Error: Content is too short. Please provide more detail.");
+            return;
+        }
+
+        if (currentUser == null) {
+            System.out.println("Error: No user is currently logged in.");
+            return;
+        }
 
         boolean success = paperService.submitPaper(title, abstractText, content,
                 currentUser.getUserId(), keywords);
@@ -367,8 +431,7 @@ public class PeerReviewSystem {
 
         for (int i = 0; i < papers.size(); i++) {
             Paper paper = papers.get(i);
-            System.out.println((i + 1) + ". " + paper.getTitle() +
-                    " (Status: " + paper.getStatus() + ")");
+            System.out.println((i + 1) + ". " + paper.getTitle() + " (Status: " + paper.getStatus() + ")");
         }
 
         System.out.print("\nEnter paper number to view details (0 to go back): ");
@@ -586,18 +649,14 @@ public class PeerReviewSystem {
             System.out.println("Email: " + user.getEmail());
             System.out.println("Role: " + user.getRole());
 
-            switch (user) {
-                case Student student -> {
-                    System.out.println("Department: " + student.getDepartment());
-                    System.out.println("Student ID: " + student.getStudentId());
-                }
-                case Faculty faculty -> {
-                    System.out.println("Department: " + faculty.getDepartment());
-                    System.out.println("Position: " + faculty.getPosition());
-                }
-                case Admin admin -> System.out.println("Admin Level: " + admin.getAdminLevel());
-                default -> {
-                }
+            if (user instanceof Student student) {
+                System.out.println("Department: " + student.getDepartment());
+                System.out.println("Student ID: " + student.getStudentId());
+            } else if (user instanceof Faculty faculty) {
+                System.out.println("Department: " + faculty.getDepartment());
+                System.out.println("Position: " + faculty.getPosition());
+            } else if (user instanceof Admin admin) {
+                System.out.println("Admin Level: " + admin.getAdminLevel());
             }
 
             // Show papers authored by this user
@@ -658,8 +717,7 @@ public class PeerReviewSystem {
         String name = scanner.nextLine();
         System.out.print("Email: ");
         String email = scanner.nextLine();
-        System.out.print("Password: ");
-        String password = scanner.nextLine();
+        String password = getSecurePassword("Password: ");
         System.out.print("Admin Level: ");
         String adminLevel = scanner.nextLine();
 
@@ -734,7 +792,7 @@ public class PeerReviewSystem {
                     .map(User::getName)
                     .orElse("Unknown");
 
-            System.out.println(STR."\{i + 1}. \{paper.getTitle()} (Author: \{authorName}, Status: \{paper.getStatus()})");
+            System.out.println((i + 1) + ". " + paper.getTitle() + " (Author: " + authorName + ", Status: " + paper.getStatus() + ")");
         }
     }
 
@@ -746,17 +804,21 @@ public class PeerReviewSystem {
         System.out.print("Enter paper ID or title: ");
         String search = scanner.nextLine();
 
-        Optional<Paper> papers = PaperService.findPaperById(search);
+        // Search papers by ID or title
+        List<Paper> matchingPapers = paperService.getAllPapers().stream()
+                .filter(p -> p.getPaperId().equalsIgnoreCase(search) ||
+                        p.getTitle().toLowerCase().contains(search.toLowerCase()))
+                .collect(Collectors.toList());
 
-        if (papers.isEmpty()) {
+        if (matchingPapers.isEmpty()) {
             System.out.println("No papers found matching your search.");
             return;
         }
 
         System.out.println("\nFound papers:");
-        for (int i = 0; i < papers.stream().count(); i++) {
-            Paper paper = papers.get();
-            System.out.println(STR."\{i + 1}. \{paper.getTitle()}");
+        for (int i = 0; i < matchingPapers.size(); i++) {
+            Paper paper = matchingPapers.get(i);
+            System.out.println((i + 1) + ". " + paper.getTitle() + " (ID: " + paper.getPaperId() + ")");
         }
 
         System.out.print("\nEnter paper number to view details (0 to go back): ");
@@ -768,8 +830,8 @@ public class PeerReviewSystem {
 
         try {
             int index = Integer.parseInt(choice) - 1;
-            if (index >= 0 && index < papers.stream().count()) {
-                Paper paper = papers.get();
+            if (index >= 0 && index < matchingPapers.size()) {
+                Paper paper = matchingPapers.get(index);
                 viewPaperDetails(paper, true);
             } else {
                 System.out.println("Invalid paper number.");
@@ -787,17 +849,21 @@ public class PeerReviewSystem {
         System.out.print("Enter paper ID or title: ");
         String search = scanner.nextLine();
 
-        Optional<Paper> papers = PaperService.findPaperById(search);
+        // Search papers by ID or title
+        List<Paper> matchingPapers = paperService.getAllPapers().stream()
+                .filter(p -> p.getPaperId().equalsIgnoreCase(search) ||
+                        p.getTitle().toLowerCase().contains(search.toLowerCase()))
+                .collect(Collectors.toList());
 
-        if (papers.isEmpty()) {
+        if (matchingPapers.isEmpty()) {
             System.out.println("No papers found matching your search.");
             return;
         }
 
         System.out.println("\nFound papers:");
-        for (int i = 0; i < papers.stream().count(); i++) {
-            Paper paper = papers.get();
-            System.out.println(STR."\{i + 1}. \{paper.getTitle()} (Current status: \{paper.getStatus()})");
+        for (int i = 0; i < matchingPapers.size(); i++) {
+            Paper paper = matchingPapers.get(i);
+            System.out.println((i + 1) + ". " + paper.getTitle() + " (Current status: " + paper.getStatus() + ")");
         }
 
         System.out.print("\nEnter paper number to change status (0 to go back): ");
@@ -809,15 +875,13 @@ public class PeerReviewSystem {
 
         try {
             int index = Integer.parseInt(choice) - 1;
-            if (index >= 0 && index < papers.stream().count()) {
-                Paper paper = papers.get();
+            if (index >= 0 && index < matchingPapers.size()) {
+                Paper paper = matchingPapers.get(index);
 
                 System.out.println("\nAvailable statuses:");
                 System.out.println("1. SUBMITTED");
                 System.out.println("2. UNDER_REVIEW");
                 System.out.println("3. ACCEPTED");
-                System.out.println("4. REJECTED");
-                System.out.println("5. REVISIONS_REQUIRED");
 
                 System.out.print("Enter new status number: ");
                 String statusChoice = scanner.nextLine();
@@ -833,20 +897,17 @@ public class PeerReviewSystem {
                     case "3":
                         newStatus = "ACCEPTED";
                         break;
-                    case "4":
-                        newStatus = "REJECTED";
-                        break;
-                    case "5":
-                        newStatus = "REVISIONS_REQUIRED";
-                        break;
                     default:
                         System.out.println("Invalid status.");
                         return;
                 }
 
-                paper.setStatus(ReviewStatus.valueOf(newStatus));
-                paperService.updatePaper(paper);
-                System.out.println(STR."Paper status updated to: \{newStatus}");
+                boolean success = paperService.updatePaperStatus(paper.getPaperId(), ReviewStatus.valueOf(newStatus));
+                if (success) {
+                    System.out.println("Paper status updated to: " + newStatus);
+                } else {
+                    System.out.println("Failed to update paper status.");
+                }
             } else {
                 System.out.println("Invalid paper number.");
             }
@@ -860,20 +921,24 @@ public class PeerReviewSystem {
      */
     private void deletePaper() {
         System.out.println("\n----- Delete Paper -----");
-        System.out.print("Enter paper ID: ");
+        System.out.print("Enter paper ID or title: ");
         String search = scanner.nextLine();
 
-        Optional<Paper> papers = PaperService.findPaperById(search);
+        // Search papers by ID or title
+        List<Paper> matchingPapers = paperService.getAllPapers().stream()
+                .filter(p -> p.getPaperId().equalsIgnoreCase(search) ||
+                        p.getTitle().toLowerCase().contains(search.toLowerCase()))
+                .collect(Collectors.toList());
 
-        if (papers.isEmpty()) {
+        if (matchingPapers.isEmpty()) {
             System.out.println("No papers found matching your search.");
             return;
         }
 
         System.out.println("\nFound papers:");
-        for (int i = 0; i < papers.stream().count(); i++) {
-            Paper paper = papers.get();
-            System.out.println(STR."\{i + 1}. \{paper.getTitle()}");
+        for (int i = 0; i < matchingPapers.size(); i++) {
+            Paper paper = matchingPapers.get(i);
+            System.out.println((i + 1) + ". " + paper.getTitle() + " (ID: " + paper.getPaperId() + ")");
         }
 
         System.out.print("\nEnter paper number to delete (0 to go back): ");
@@ -885,10 +950,10 @@ public class PeerReviewSystem {
 
         try {
             int index = Integer.parseInt(choice) - 1;
-            if (index >= 0 && index < papers.stream().count()) {
-                Paper paper = papers.get();
+            if (index >= 0 && index < matchingPapers.size()) {
+                Paper paper = matchingPapers.get(index);
 
-                System.out.println(STR."Are you sure you want to delete paper \"\{paper.getTitle()}\"? (y/n)");
+                System.out.println("Are you sure you want to delete paper \"" + paper.getTitle() + "\"? (y/n)");
                 String confirm = scanner.nextLine();
 
                 if (confirm.equalsIgnoreCase("y")) {
@@ -922,9 +987,9 @@ public class PeerReviewSystem {
         // Get papers that can be assigned for review
         List<Paper> papers = paperService.getAllPapers()
                 .stream()
-                .filter(p -> p.getStatus().equals("SUBMITTED") || p.getStatus().equals("UNDER_REVIEW"))
-                .sorted((p1, p2) -> p1.getTitle().compareTo(p2.getTitle()))
-                .collect(java.util.stream.Collectors.toList());
+                .filter(p -> p.getStatus() == ReviewStatus.PENDING)
+                .sorted(Comparator.comparing(Paper::getTitle))
+                .collect(Collectors.toList());
 
         if (papers.isEmpty()) {
             System.out.println("No papers available for review assignment.");
@@ -934,7 +999,7 @@ public class PeerReviewSystem {
         System.out.println("Papers available for review assignment:");
         for (int i = 0; i < papers.size(); i++) {
             Paper paper = papers.get(i);
-            System.out.println(STR."\{i + 1}. \{paper.getTitle()} (Status: \{paper.getStatus()})");
+            System.out.println((i + 1) + ". " + paper.getTitle() + " (Status: " + paper.getStatus() + ")");
         }
 
         System.out.print("\nEnter paper number to assign reviewers (0 to go back): ");
@@ -961,8 +1026,7 @@ public class PeerReviewSystem {
      * Assign reviewers for a specific paper
      */
     private void assignReviewersForPaper(Paper paper) {
-        System.out.println(STR."""
-        Paper: \{paper.getTitle()}""");
+        System.out.println("Paper: " + paper.getTitle());
 
         // Get current reviewers
         List<String> currentReviewerIds = reviewService.getReviewersForPaper(paper.getPaperId());
@@ -977,7 +1041,7 @@ public class PeerReviewSystem {
             System.out.println("None");
         } else {
             for (User reviewer : currentReviewers) {
-                System.out.println(STR."- \{reviewer.getName()} (\{reviewer.getRole()})");
+                System.out.println("- " + reviewer.getName() + " (" + reviewer.getRole() + ")");
             }
         }
 
@@ -985,9 +1049,9 @@ public class PeerReviewSystem {
         List<User> potentialReviewers = userService.getAllUsers()
                 .stream()
                 .filter(u -> !u.getUserId().equals(paper.getAuthorId()) && !currentReviewerIds.contains(u.getUserId()))
-                .filter(u -> u instanceof Faculty || u instanceof Student) // Only faculty and students can review
-                .sorted((u1, u2) -> u1.getName().compareTo(u2.getName()))
-                .collect(java.util.stream.Collectors.toList());
+                .filter(u -> u instanceof Faculty || u instanceof Student)
+                .sorted(Comparator.comparing(User::getName))
+                .collect(Collectors.toList());
 
         if (potentialReviewers.isEmpty()) {
             System.out.println("\nNo potential reviewers available.");
@@ -997,7 +1061,7 @@ public class PeerReviewSystem {
         System.out.println("\nPotential reviewers:");
         for (int i = 0; i < potentialReviewers.size(); i++) {
             User user = potentialReviewers.get(i);
-            System.out.println(STR."\{i + 1}. \{user.getName()} (\{user.getRole()})");
+            System.out.println((i + 1) + ". " + user.getName() + " (" + user.getRole() + ")");
         }
 
         System.out.print("\nEnter reviewer number to assign (0 to go back): ");
@@ -1015,12 +1079,11 @@ public class PeerReviewSystem {
                 boolean success = paperService.assignReviewer(paper.getPaperId(), reviewer.getUserId());
 
                 if (success) {
-                    System.out.println(STR."\{reviewer.getName()} assigned as a reviewer successfully.");
+                    System.out.println(reviewer.getName() + " assigned as a reviewer successfully.");
 
                     // Update paper status if needed
-                    if (paper.getStatus().equals("SUBMITTED")) {
-                        paper.setStatus(ReviewStatus.valueOf("UNDER_REVIEW"));
-                        paperService.updatePaper(paper);
+                    if (paper.getStatus() == ReviewStatus.SUBMITTED) {
+                        paperService.updatePaperStatus(paper.getPaperId(), ReviewStatus.UNDER_REVIEW);
                         System.out.println("Paper status updated to UNDER_REVIEW.");
                     }
                 } else {
@@ -1044,20 +1107,24 @@ public class PeerReviewSystem {
         }
 
         System.out.println("\n----- View Reviews -----");
-        System.out.print("Enter paper ID: ");
+        System.out.print("Enter paper ID or title: ");
         String search = scanner.nextLine();
 
-        Optional<Paper> papers = PaperService.findPaperById(search);
+        // Search papers by ID or title
+        List<Paper> matchingPapers = paperService.getAllPapers().stream()
+                .filter(p -> p.getPaperId().equalsIgnoreCase(search) ||
+                        p.getTitle().toLowerCase().contains(search.toLowerCase()))
+                .collect(Collectors.toList());
 
-        if (papers.isEmpty()) {
+        if (matchingPapers.isEmpty()) {
             System.out.println("No papers found matching your search.");
             return;
         }
 
         System.out.println("\nFound papers:");
-        for (int i = 0; i < papers.stream().count(); i++) {
-            Paper paper = papers.get();
-            System.out.println((i + 1) + ". " + paper.getTitle());
+        for (int i = 0; i < matchingPapers.size(); i++) {
+            Paper paper = matchingPapers.get(i);
+            System.out.println((i + 1) + ". " + paper.getTitle() + " (ID: " + paper.getPaperId() + ")");
         }
 
         System.out.print("\nEnter paper number to view reviews (0 to go back): ");
@@ -1069,8 +1136,8 @@ public class PeerReviewSystem {
 
         try {
             int index = Integer.parseInt(choice) - 1;
-            if (index >= 0 && index < papers.stream().count()) {
-                Paper paper = papers.get();
+            if (index >= 0 && index < matchingPapers.size()) {
+                Paper paper = matchingPapers.get(index);
 
                 List<Review> reviews = reviewService.getReviewsForPaper(paper.getPaperId());
 
@@ -1082,8 +1149,8 @@ public class PeerReviewSystem {
                 System.out.println("\n----- Reviews for \"" + paper.getTitle() + "\" -----");
 
                 for (Review review : reviews) {
-                    User reviewer = (User) userService.getUserById(review.getReviewerId()).orElse(null);
-                    String reviewerName = reviewer != null ? reviewer.getName() : "Unknown";
+                    Optional<User> reviewerOpt = userService.findUserById(review.getReviewerId());
+                    String reviewerName = reviewerOpt.map(User::getName).orElse("Unknown");
 
                     System.out.println("\nReviewer: " + reviewerName);
                     System.out.println("Rating: " + review.getRating() + "/5");
@@ -1106,8 +1173,8 @@ public class PeerReviewSystem {
         System.out.println("\n----- Paper Details -----");
         System.out.println("Title: " + paper.getTitle());
 
-        User author = (User) userService.getUserById(paper.getAuthorId()).orElse(null);
-        String authorName = author != null ? author.getName() : "Unknown";
+        Optional<User> authorOpt = userService.findUserById(paper.getAuthorId());
+        String authorName = authorOpt.map(User::getName).orElse("Unknown");
 
         System.out.println("Author: " + authorName);
         System.out.println("Status: " + paper.getStatus());
@@ -1127,8 +1194,8 @@ public class PeerReviewSystem {
                 System.out.println("\n----- Reviews -----");
 
                 for (Review review : reviews) {
-                    User reviewer = (User) userService.getUserById(review.getReviewerId()).orElse(null);
-                    String reviewerName = reviewer != null ? reviewer.getName() : "Unknown";
+                    Optional<User> reviewerOpt = userService.findUserById(review.getReviewerId());
+                    String reviewerName = reviewerOpt.map(User::getName).orElse("Unknown");
 
                     System.out.println("\nReviewer: " + reviewerName);
                     System.out.println("Rating: " + review.getRating() + "/5");

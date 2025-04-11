@@ -110,7 +110,6 @@ public class InMemoryStorage<T> implements DataStorage<T> {
     }
 
     @Override
-    public boolean loadAll() {
-        return true;
+    public void loadAll() {
     }
 }

@@ -83,7 +83,7 @@ public class ReviewService {
 
         // If not admin, return blinded copies
 
-        if (!Admin.isAdmin()) {
+        if (this.Admin == null || !this.Admin.isAdmin()) {
             return reviews.stream()
                     .map(Review::getBlindedCopy)
                     .collect(Collectors.toList());

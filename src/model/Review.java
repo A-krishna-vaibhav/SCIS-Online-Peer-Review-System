@@ -78,16 +78,8 @@ public class Review implements Serializable {
         return rating;
     }
 
-    public void setRating(int rating) {
-        this.rating = validateRating(rating);
-    }
-
     public String getComments() {
         return comments;
-    }
-
-    public void setComments(String comments) {
-        this.comments = comments;
     }
 
     public LocalDateTime getSubmissionDate() {
@@ -98,30 +90,19 @@ public class Review implements Serializable {
         return status;
     }
 
-    public void setStatus(ReviewStatus status) {
-        this.status = status;
-    }
-
     /**
      * Get a blinded version of the review (hides reviewer information)
      */
     public Review getBlindedCopy() {
-        Review blindedReview = new Review(
-                reviewId, paperId, "ANONYMOUS", "ANONYMOUS",
+        return new Review(
+                reviewId, paperId, reviewerId, "ANONYMOUS",
                 rating, comments, submissionDate, status
         );
-        return blindedReview;
     }
 
     @Override
     public String toString() {
-        return "Review{" +
-                "reviewId='" + reviewId + '\'' +
-                ", paperId='" + paperId + '\'' +
-                ", reviewer='" + reviewerName + '\'' +
-                ", rating=" + rating +
-                ", submission date=" + submissionDate +
-                ", status=" + status +
-                '}';
+        return String.format("Review{reviewId='%s', paperId='%s', reviewer='%s', rating=%d, submissionDate=%s, status=%s}",
+                reviewId, paperId, reviewerName, rating, submissionDate, status);
     }
 }

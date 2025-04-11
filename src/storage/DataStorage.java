@@ -51,7 +51,6 @@ public interface DataStorage<T> {
 
     /**
      * Load all objects from persistent storage
-     * @return true if loaded successfully
      */
-    boolean loadAll();
+    void loadAll();
 }

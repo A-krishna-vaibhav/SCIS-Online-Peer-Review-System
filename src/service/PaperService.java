@@ -28,8 +28,7 @@ public class PaperService {
         Optional<User> author = userService.findUserById(authorId);
 
         if (author.isPresent()) {
-            Paper paper = new Paper(title, abstractText, content, authorId,
-                    author.get().getName(), keywords);
+            Paper paper = new Paper(title, abstractText, content, authorId, author.get().getName(), keywords);
             return paperStorage.save(paper);
         }
 
@@ -53,7 +52,7 @@ public class PaperService {
     /**
      * Get papers submitted by a specific author
      */
-    public List<Paper> getPapersByAuthor(String authorId) {
+    public static List<Paper> getPapersByAuthor(String authorId) {
         return paperStorage.findAll().stream()
                 .filter(paper -> paper.getAuthorId().equals(authorId))
                 .collect(Collectors.toList());

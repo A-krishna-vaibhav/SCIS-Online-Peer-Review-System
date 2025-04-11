@@ -132,20 +132,18 @@ public class FileStorage<T> implements DataStorage<T> {
 
     @SuppressWarnings("unchecked")
     @Override
-    public boolean loadAll() {
+    public void loadAll() {
         File file = new File(fileName);
 
         // If file doesn't exist yet, return without loading
         if (!file.exists()) {
-            return true;
+            return;
         }
 
         try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(file))) {
             objects = (List<T>) ois.readObject();
-            return true;
         } catch (IOException | ClassNotFoundException e) {
             System.err.println("Error loading from file: " + e.getMessage());
-            return false;
         }
     }
 }
